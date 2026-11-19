@@ -61,7 +61,7 @@ itemRoutes.post("/", authorize("ADMIN", "WAREHOUSE_MANAGER", "STORE_KEEPER"), va
 
 itemRoutes.get("/", validateQuery(querySchema), async (req, res, next) => {
   try {
-    const q = req.query as unknown as z.infer<typeof querySchema>;
+    const q = res.locals.validatedQuery as z.infer<typeof querySchema>;
     const where: any = { isActive: true };
     if (q.search) where.OR = [
       { name: { contains: q.search, mode: "insensitive" } },

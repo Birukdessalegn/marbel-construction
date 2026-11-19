@@ -143,7 +143,7 @@ stockRoutes.get("/balances", validateQuery(z.object({
   itemId: z.string().uuid().optional(), locationId: z.string().uuid().optional(), qualityStatus: statusSchema.optional()
 })), async (req, res, next) => {
   try {
-    const q = req.query as unknown as { page: number; limit: number; itemId?: string; locationId?: string; qualityStatus?: z.infer<typeof statusSchema> };
+    const q = res.locals.validatedQuery as { page: number; limit: number; itemId?: string; locationId?: string; qualityStatus?: z.infer<typeof statusSchema> };
     const where: any = { ...(q.itemId ? { itemId: q.itemId } : {}), ...(q.locationId ? { locationId: q.locationId } : {}), ...(q.qualityStatus ? { qualityStatus: q.qualityStatus } : {}) };
     const [data, total] = await Promise.all([
       prisma.stockBalance.findMany({ where, include: { item: true, location: { include: { warehouse: true } } }, skip: (q.page - 1) * q.limit, take: q.limit }),
@@ -168,7 +168,7 @@ stockRoutes.get("/transactions", validateQuery(z.object({
   itemId: z.string().uuid().optional(), type: z.enum(["RECEIPT", "ISSUE", "TRANSFER", "ADJUSTMENT", "STOCK_COUNT"]).optional()
 })), async (req, res, next) => {
   try {
-    const q = req.query as unknown as { page: number; limit: number; itemId?: string; type?: string };
+    const q = res.locals.validatedQuery as { page: number; limit: number; itemId?: string; type?: string };
     const where: any = { ...(q.itemId ? { itemId: q.itemId } : {}), ...(q.type ? { type: q.type } : {}) };
     const [data, total] = await Promise.all([
       prisma.stockTransaction.findMany({ where, include: { item: true, actor: { select: { id: true, name: true } } }, skip: (q.page - 1) * q.limit, take: q.limit, orderBy: { createdAt: "desc" } }),

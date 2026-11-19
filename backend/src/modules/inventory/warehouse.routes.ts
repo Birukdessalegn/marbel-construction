@@ -26,7 +26,7 @@ warehouseRoutes.post("/", authorize("ADMIN", "WAREHOUSE_MANAGER"), validateBody(
 
 warehouseRoutes.get("/", validateQuery(listSchema), async (req, res, next) => {
   try {
-    const q = req.query as unknown as z.infer<typeof listSchema>;
+    const q = res.locals.validatedQuery as z.infer<typeof listSchema>;
     const where: any = { isActive: true, ...(q.search ? { OR: [{ code: { contains: q.search, mode: "insensitive" } }, { name: { contains: q.search, mode: "insensitive" } }] } : {}) };
     const [data, total] = await Promise.all([
       prisma.warehouse.findMany({ where, include: { locations: true }, skip: (q.page - 1) * q.limit, take: q.limit, orderBy: { name: "asc" } }),
@@ -75,7 +75,7 @@ locationRoutes.get("/", validateQuery(z.object({
   limit: z.coerce.number().int().positive().max(100).default(20)
 })), async (req, res, next) => {
   try {
-    const q = req.query as unknown as { warehouseId?: string; page: number; limit: number };
+    const q = res.locals.validatedQuery as { warehouseId?: string; page: number; limit: number };
     const where: any = q.warehouseId ? { warehouseId: q.warehouseId } : {};
     const [data, total] = await Promise.all([
       prisma.location.findMany({ where, include: { warehouse: true }, skip: (q.page - 1) * q.limit, take: q.limit, orderBy: { code: "asc" } }),
