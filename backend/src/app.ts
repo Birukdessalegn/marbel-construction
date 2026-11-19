@@ -1,0 +1,34 @@
+import express from "express";
+import cors from "cors";
+import helmet from "helmet";
+import morgan from "morgan";
+import rateLimit from "express-rate-limit";
+import swaggerUi from "swagger-ui-express";
+import path from "node:path";
+import { env } from "./config/env";
+import { authRoutes } from "./modules/auth/auth.routes";
+import { itemRoutes } from "./modules/inventory/item.routes";
+import { warehouseRoutes, locationRoutes } from "./modules/inventory/warehouse.routes";
+import { stockRoutes } from "./modules/inventory/stock.routes";
+import { errorHandler } from "./common/middleware";
+import { swaggerSpec } from "./config/swagger";
+
+export const app = express();
+
+app.use(helmet());
+app.use(cors({ origin: env.CORS_ORIGIN === "*" ? true : env.CORS_ORIGIN.split(",") }));
+app.use(express.json({ limit: "1mb" }));
+app.use(express.urlencoded({ extended: true }));
+app.use(morgan(env.NODE_ENV === "production" ? "combined" : "dev"));
+app.use("/api/v1/auth", rateLimit({ windowMs: env.RATE_LIMIT_WINDOW_MS, limit: env.RATE_LIMIT_MAX }));
+
+app.get("/health", (_req, res) => res.json({ status: "ok" }));
+app.use("/api/v1/auth", authRoutes);
+app.use("/api/v1/items", itemRoutes);
+app.use("/api/v1/warehouses", warehouseRoutes);
+app.use("/api/v1/locations", locationRoutes);
+app.use("/api/v1/stock", stockRoutes);
+app.use("/uploads", express.static(path.resolve(process.cwd(), "uploads")));
+app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.get("/api/openapi.json", (_req, res) => res.json(swaggerSpec));
+app.use(errorHandler);
