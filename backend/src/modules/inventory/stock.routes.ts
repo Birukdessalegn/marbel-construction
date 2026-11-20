@@ -1,9 +1,9 @@
 import { Router } from "express";
 import { z } from "zod";
-import { Prisma } from "@prisma/client";
 import { prisma } from "../../config/prisma";
 import { authenticate, authorize, validateBody, validateQuery } from "../../common/middleware";
 import { AppError } from "../../common/errors";
+import { nextTransactionNo, recordStockReceipt, setBalance } from "./inventory.service";
 
 export const stockRoutes = Router();
 stockRoutes.use(authenticate);
@@ -24,46 +24,15 @@ const movementSchema = z.object({
 
 const adjustSchema = movementSchema.extend({ quantity: z.coerce.number(), note: z.string().min(3) });
 
-async function setBalance(
-  tx: Prisma.TransactionClient,
-  itemId: string,
-  locationId: string,
-  qualityStatus: z.infer<typeof statusSchema>,
-  quantityDelta: number,
-  areaDelta: number
-) {
-  const existing = await tx.stockBalance.findUnique({
-    where: { itemId_locationId_qualityStatus: { itemId, locationId, qualityStatus } }
-  });
-  const quantity = new Prisma.Decimal(existing ? existing.quantity : 0).plus(quantityDelta);
-  const areaSqm = new Prisma.Decimal(existing ? existing.areaSqm : 0).plus(areaDelta);
-  if (quantity.isNegative() || areaSqm.isNegative()) throw new AppError(409, "INSUFFICIENT_STOCK", "Operation would create negative stock");
-  return tx.stockBalance.upsert({
-    where: { itemId_locationId_qualityStatus: { itemId, locationId, qualityStatus } },
-    create: { itemId, locationId, qualityStatus, quantity, areaSqm },
-    update: { quantity, areaSqm }
-  });
-}
-
-async function nextTransactionNo(tx: Prisma.TransactionClient, type: string) {
-  const prefix = type.slice(0, 3).toUpperCase();
-  const count = await tx.stockTransaction.count();
-  return `${prefix}-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${String(count + 1).padStart(6, "0")}`;
-}
-
 stockRoutes.post("/receive", authorize("ADMIN", "WAREHOUSE_MANAGER", "STORE_KEEPER"), validateBody(movementSchema), async (req, res, next) => {
   try {
     if (!req.body.locationId) throw new AppError(400, "VALIDATION_ERROR", "locationId is required");
     const transaction = await prisma.$transaction(async (tx) => {
-      await tx.item.findUniqueOrThrow({ where: { id: req.body.itemId } });
-      await tx.location.findUniqueOrThrow({ where: { id: req.body.locationId } });
-      await setBalance(tx, req.body.itemId, req.body.locationId, req.body.qualityStatus, req.body.quantity, req.body.areaSqm);
-      return tx.stockTransaction.create({ data: {
-        transactionNo: await nextTransactionNo(tx, "RECEIPT"),
-        type: "RECEIPT", itemId: req.body.itemId, toLocationId: req.body.locationId,
-        qualityStatus: req.body.qualityStatus, quantity: req.body.quantity, areaSqm: req.body.areaSqm,
-        referenceType: req.body.referenceType, referenceId: req.body.referenceId, note: req.body.note, actorId: req.user!.id
-      } });
+      return recordStockReceipt(tx, {
+        ...req.body,
+        locationId: req.body.locationId,
+        actorId: req.user!.id
+      });
     });
     res.status(201).json(transaction);
   } catch (error) { next(error); }
@@ -75,7 +44,7 @@ stockRoutes.post("/issue", authorize("ADMIN", "WAREHOUSE_MANAGER", "STORE_KEEPER
     const transaction = await prisma.$transaction(async (tx) => {
       await setBalance(tx, req.body.itemId, req.body.locationId, req.body.qualityStatus, -req.body.quantity, -req.body.areaSqm);
       return tx.stockTransaction.create({ data: {
-        transactionNo: await nextTransactionNo(tx, "ISSUE"), type: "ISSUE",
+        transactionNo: nextTransactionNo("ISSUE"), type: "ISSUE",
         itemId: req.body.itemId, fromLocationId: req.body.locationId,
         qualityStatus: req.body.qualityStatus, quantity: req.body.quantity, areaSqm: req.body.areaSqm,
         referenceType: req.body.referenceType, referenceId: req.body.referenceId, note: req.body.note, actorId: req.user!.id
@@ -93,7 +62,7 @@ stockRoutes.post("/transfer", authorize("ADMIN", "WAREHOUSE_MANAGER", "STORE_KEE
       await setBalance(tx, req.body.itemId, req.body.fromLocationId, req.body.qualityStatus, -req.body.quantity, -req.body.areaSqm);
       await setBalance(tx, req.body.itemId, req.body.toLocationId, req.body.qualityStatus, req.body.quantity, req.body.areaSqm);
       return tx.stockTransaction.create({ data: {
-        transactionNo: await nextTransactionNo(tx, "TRANSFER"), type: "TRANSFER",
+        transactionNo: nextTransactionNo("TRANSFER"), type: "TRANSFER",
         itemId: req.body.itemId, fromLocationId: req.body.fromLocationId, toLocationId: req.body.toLocationId,
         qualityStatus: req.body.qualityStatus, quantity: req.body.quantity, areaSqm: req.body.areaSqm,
         referenceType: req.body.referenceType, referenceId: req.body.referenceId, note: req.body.note, actorId: req.user!.id
@@ -109,7 +78,7 @@ stockRoutes.post("/adjust", authorize("ADMIN", "WAREHOUSE_MANAGER"), validateBod
     const transaction = await prisma.$transaction(async (tx) => {
       await setBalance(tx, req.body.itemId, req.body.locationId, req.body.qualityStatus, req.body.quantity, req.body.areaSqm);
       return tx.stockTransaction.create({ data: {
-        transactionNo: await nextTransactionNo(tx, "ADJUSTMENT"), type: "ADJUSTMENT",
+        transactionNo: nextTransactionNo("ADJUSTMENT"), type: "ADJUSTMENT",
         itemId: req.body.itemId, toLocationId: req.body.locationId,
         qualityStatus: req.body.qualityStatus, quantity: req.body.quantity, areaSqm: req.body.areaSqm,
         referenceType: req.body.referenceType, referenceId: req.body.referenceId, note: req.body.note, actorId: req.user!.id
@@ -128,7 +97,7 @@ stockRoutes.post("/count", authorize("ADMIN", "WAREHOUSE_MANAGER", "STORE_KEEPER
       const delta = req.body.quantity - current;
       await setBalance(tx, req.body.itemId, req.body.locationId, req.body.qualityStatus, delta, req.body.areaSqm - Number(existing?.areaSqm ?? 0));
       return tx.stockTransaction.create({ data: {
-        transactionNo: await nextTransactionNo(tx, "STOCK_COUNT"), type: "STOCK_COUNT",
+        transactionNo: nextTransactionNo("STOCK_COUNT"), type: "STOCK_COUNT",
         itemId: req.body.itemId, toLocationId: req.body.locationId,
         qualityStatus: req.body.qualityStatus, quantity: delta, areaSqm: req.body.areaSqm,
         referenceType: "STOCK_COUNT", referenceId: req.body.referenceId, note: req.body.note, actorId: req.user!.id

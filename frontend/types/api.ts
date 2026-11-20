@@ -1,4 +1,4 @@
-export type Role = "ADMIN" | "WAREHOUSE_MANAGER" | "STORE_KEEPER" | "VIEWER";
+export type Role = "ADMIN" | "PURCHASE_MANAGER" | "WAREHOUSE_MANAGER" | "STORE_KEEPER" | "VIEWER";
 export type QualityStatus = "AVAILABLE" | "QUARANTINE" | "RESERVED" | "SOLD";
 export type ItemType = "BLOCK" | "SLAB" | "TILE" | "CUT_TO_SIZE" | "RESIDUAL" | "CONSUMABLE";
 

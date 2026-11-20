@@ -6,7 +6,7 @@ export const swaggerSpec = swaggerJsdoc({
     info: {
       title: "MarbleERP API",
       version: "1.0.0",
-      description: "Phase 1 inventory and warehouse management API"
+      description: "Inventory, warehouse, procurement, purchasing, and supplier management API"
     },
     servers: [{ url: "/api/v1" }],
     components: {
@@ -72,7 +72,44 @@ export const swaggerSpec = swaggerJsdoc({
       "/stock/locations/{locationId}": { get: { tags: ["Stock"], summary: "Stock at location", responses: { 200: { description: "Location balances" } } } },
       "/stock/transactions": { get: { tags: ["Stock"], summary: "Stock transaction history", responses: { 200: { description: "Transaction list" } } } },
       "/stock/transactions/{id}": { get: { tags: ["Stock"], summary: "Transaction detail", responses: { 200: { description: "Transaction detail" } } } },
-      "/stock/summary": { get: { tags: ["Stock"], summary: "Stock summary", responses: { 200: { description: "Aggregated stock summary" } } } }
+      "/stock/summary": { get: { tags: ["Stock"], summary: "Stock summary", responses: { 200: { description: "Aggregated stock summary" } } } },
+      "/suppliers": {
+        get: { tags: ["Procurement"], summary: "List suppliers", responses: { 200: { description: "Paginated suppliers" } } },
+        post: { tags: ["Procurement"], summary: "Create supplier", responses: { 201: { description: "Supplier created" } } }
+      },
+      "/suppliers/{id}": {
+        get: { tags: ["Procurement"], summary: "Get supplier", responses: { 200: { description: "Supplier detail" } } },
+        patch: { tags: ["Procurement"], summary: "Update supplier", responses: { 200: { description: "Supplier updated" } } },
+        delete: { tags: ["Procurement"], summary: "Deactivate supplier", responses: { 204: { description: "Supplier deactivated" } } }
+      },
+      "/purchase-orders": {
+        get: { tags: ["Procurement"], summary: "List purchase orders", responses: { 200: { description: "Paginated purchase orders" } } },
+        post: { tags: ["Procurement"], summary: "Create draft purchase order", responses: { 201: { description: "Purchase order created" } } }
+      },
+      "/purchase-orders/{id}": {
+        get: { tags: ["Procurement"], summary: "Get purchase order", responses: { 200: { description: "Purchase order detail" } } },
+        patch: { tags: ["Procurement"], summary: "Update draft purchase order", responses: { 200: { description: "Purchase order updated" } } }
+      },
+      "/purchase-orders/{id}/approve": { post: { tags: ["Procurement"], summary: "Approve purchase order", responses: { 200: { description: "Order status changed to ORDERED" } } } },
+      "/purchase-orders/{id}/cancel": { post: { tags: ["Procurement"], summary: "Cancel purchase order", responses: { 200: { description: "Purchase order cancelled" } } } },
+      "/purchase-orders/{id}/close": { post: { tags: ["Procurement"], summary: "Close fully received purchase order", responses: { 200: { description: "Purchase order closed" } } } },
+      "/goods-receipts": {
+        get: { tags: ["Procurement"], summary: "List goods receipts", responses: { 200: { description: "Paginated goods receipts" } } },
+        post: { tags: ["Procurement"], summary: "Receive goods against a purchase order", responses: { 201: { description: "Goods received and inventory updated atomically" } } }
+      },
+      "/goods-receipts/{id}": { get: { tags: ["Procurement"], summary: "Get goods receipt", responses: { 200: { description: "Goods receipt with linked inventory transactions" } } } },
+      "/purchase-invoices": {
+        get: { tags: ["Procurement"], summary: "List purchase invoices", responses: { 200: { description: "Paginated purchase invoices" } } },
+        post: { tags: ["Procurement"], summary: "Record purchase invoice", responses: { 201: { description: "Purchase invoice recorded" } } }
+      },
+      "/purchase-invoices/{id}": { get: { tags: ["Procurement"], summary: "Get purchase invoice", responses: { 200: { description: "Purchase invoice detail" } } } },
+      "/purchase-invoices/{id}/void": { post: { tags: ["Procurement"], summary: "Void purchase invoice", responses: { 200: { description: "Purchase invoice voided" } } } },
+      "/purchase-orders/{purchaseOrderId}/landing-costs": {
+        get: { tags: ["Procurement"], summary: "List landing costs", responses: { 200: { description: "Landing costs and allocations" } } },
+        post: { tags: ["Procurement"], summary: "Record and allocate landing cost", responses: { 201: { description: "Landing cost allocated to purchase order items" } } }
+      },
+      "/reports/purchase-history": { get: { tags: ["Procurement Reports"], summary: "Purchase history", responses: { 200: { description: "Filtered purchase history" } } } },
+      "/reports/supplier-performance": { get: { tags: ["Procurement Reports"], summary: "Supplier performance", responses: { 200: { description: "On-time delivery and quality acceptance metrics" } } } }
     }
   },
   apis: ["src/**/*.ts"]

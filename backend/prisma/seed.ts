@@ -15,6 +15,7 @@ async function main() {
 
   const users = [
     ["ADMIN", "Admin User", "admin@marbleerp.local"],
+    ["PURCHASE_MANAGER", "Purchase Manager", "purchase@marbleerp.local"],
     ["WAREHOUSE_MANAGER", "Warehouse Manager", "manager@marbleerp.local"],
     ["STORE_KEEPER", "Store Keeper", "keeper@marbleerp.local"],
     ["VIEWER", "Viewer User", "viewer@marbleerp.local"]

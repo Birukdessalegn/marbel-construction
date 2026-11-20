@@ -9,9 +9,43 @@ datasource db {
 
 enum Role {
   ADMIN
+  PURCHASE_MANAGER
   WAREHOUSE_MANAGER
   STORE_KEEPER
   VIEWER
+}
+
+enum SupplierStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  ORDERED
+  PARTIALLY_RECEIVED
+  RECEIVED
+  CLOSED
+  CANCELLED
+}
+
+enum PurchaseInvoiceStatus {
+  RECORDED
+  VOID
+}
+
+enum LandingCostCategory {
+  FREIGHT
+  CUSTOMS
+  HANDLING
+  OTHER
+}
+
+enum LandingCostAllocationBasis {
+  ITEM_VALUE
+  QUANTITY
+  WEIGHT
+  MANUAL
 }
 
 enum ItemType {
@@ -44,58 +78,62 @@ enum StockTransactionType {
 }
 
 model User {
-  id                 String             @id @default(uuid())
-  name               String
-  email              String             @unique
-  passwordHash       String
-  role               Role               @default(VIEWER)
-  isActive           Boolean            @default(true)
-  refreshTokens      RefreshToken[]
-  stockTransactions  StockTransaction[]
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
+  id                     String             @id @default(uuid())
+  name                   String
+  email                  String             @unique
+  passwordHash           String
+  role                   Role               @default(VIEWER)
+  isActive               Boolean            @default(true)
+  refreshTokens          RefreshToken[]
+  stockTransactions      StockTransaction[]
+  createdPurchaseOrders  PurchaseOrder[]    @relation("PurchaseOrderCreator")
+  approvedPurchaseOrders PurchaseOrder[]    @relation("PurchaseOrderApprover")
+  goodsReceipts          GoodsReceipt[]
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
 }
 
 model RefreshToken {
-  id        String   @id @default(uuid())
-  tokenHash String   @unique
+  id        String    @id @default(uuid())
+  tokenHash String    @unique
   userId    String
   expiresAt DateTime
   revokedAt DateTime?
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
 
 model Item {
-  id              String         @id @default(uuid())
-  sku             String         @unique
-  name            String
-  type            ItemType
-  uniqueBlockId   String?        @unique
-  uniqueSlabId    String?        @unique
-  quarryOrigin    String?
-  color           String?
-  veinPattern     String?
-  qualityGrade    String?
-  finish          String?
-  thicknessMm     Decimal?
-  lengthMm        Decimal?
-  widthMm         Decimal?
-  weightKg        Decimal?
-  areaSqm         Decimal?
-  recoveryPercent Decimal?
-  qualityStatus   QualityStatus  @default(AVAILABLE)
-  parentId        String?
-  parent          Item?          @relation("ItemTraceability", fields: [parentId], references: [id])
-  children        Item[]         @relation("ItemTraceability")
-  photos          ItemPhoto[]
-  balances        StockBalance[]
-  transactions    StockTransaction[]
-  isActive        Boolean        @default(true)
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  id                 String              @id @default(uuid())
+  sku                String              @unique
+  name               String
+  type               ItemType
+  uniqueBlockId      String?             @unique
+  uniqueSlabId       String?             @unique
+  quarryOrigin       String?
+  color              String?
+  veinPattern        String?
+  qualityGrade       String?
+  finish             String?
+  thicknessMm        Decimal?
+  lengthMm           Decimal?
+  widthMm            Decimal?
+  weightKg           Decimal?
+  areaSqm            Decimal?
+  recoveryPercent    Decimal?
+  qualityStatus      QualityStatus       @default(AVAILABLE)
+  parentId           String?
+  parent             Item?               @relation("ItemTraceability", fields: [parentId], references: [id])
+  children           Item[]              @relation("ItemTraceability")
+  photos             ItemPhoto[]
+  balances           StockBalance[]
+  transactions       StockTransaction[]
+  purchaseOrderItems PurchaseOrderItem[]
+  isActive           Boolean             @default(true)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
 
   @@index([type, qualityStatus])
   @@index([qualityGrade, finish])
@@ -103,12 +141,12 @@ model Item {
 }
 
 model ItemPhoto {
-  id        String   @id @default(uuid())
+  id        String  @id @default(uuid())
   itemId    String
   url       String
   caption   String?
-  sortOrder Int      @default(0)
-  item      Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  sortOrder Int     @default(0)
+  item      Item    @relation(fields: [itemId], references: [id], onDelete: Cascade)
 
   @@index([itemId, sortOrder])
 }
@@ -125,17 +163,18 @@ model Warehouse {
 }
 
 model Location {
-  id             String         @id @default(uuid())
-  warehouseId    String
-  code           String
-  name           String?
-  status         LocationStatus @default(ACTIVE)
-  warehouse      Warehouse      @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
-  stock          StockBalance[]
-  transfersFrom  StockTransaction[] @relation("StockFrom")
-  transfersTo    StockTransaction[] @relation("StockTo")
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  id            String             @id @default(uuid())
+  warehouseId   String
+  code          String
+  name          String?
+  status        LocationStatus     @default(ACTIVE)
+  warehouse     Warehouse          @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  stock         StockBalance[]
+  transfersFrom StockTransaction[] @relation("StockFrom")
+  transfersTo   StockTransaction[] @relation("StockTo")
+  goodsReceipts GoodsReceipt[]
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
 
   @@unique([warehouseId, code])
   @@index([warehouseId, status])
@@ -157,27 +196,175 @@ model StockBalance {
 }
 
 model StockTransaction {
-  id             String               @id @default(uuid())
-  transactionNo  String               @unique
-  type           StockTransactionType
-  itemId         String
-  fromLocationId String?
-  toLocationId   String?
-  qualityStatus  QualityStatus
-  quantity       Decimal
-  areaSqm        Decimal              @default(0)
-  referenceType  String?
-  referenceId    String?
-  note           String?
-  actorId        String
-  createdAt      DateTime             @default(now())
-  item           Item                 @relation(fields: [itemId], references: [id], onDelete: Restrict)
-  fromLocation   Location?            @relation("StockFrom", fields: [fromLocationId], references: [id], onDelete: Restrict)
-  toLocation    Location?            @relation("StockTo", fields: [toLocationId], references: [id], onDelete: Restrict)
-  actor          User                 @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  id               String               @id @default(uuid())
+  transactionNo    String               @unique
+  type             StockTransactionType
+  itemId           String
+  fromLocationId   String?
+  toLocationId     String?
+  qualityStatus    QualityStatus
+  quantity         Decimal
+  areaSqm          Decimal              @default(0)
+  referenceType    String?
+  referenceId      String?
+  note             String?
+  actorId          String
+  createdAt        DateTime             @default(now())
+  item             Item                 @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  fromLocation     Location?            @relation("StockFrom", fields: [fromLocationId], references: [id], onDelete: Restrict)
+  toLocation       Location?            @relation("StockTo", fields: [toLocationId], references: [id], onDelete: Restrict)
+  actor            User                 @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  goodsReceiptItem GoodsReceiptItem?
 
   @@index([itemId, createdAt])
   @@index([type, createdAt])
   @@index([qualityStatus])
   @@index([fromLocationId, toLocationId])
+}
+
+model Supplier {
+  id             String            @id @default(uuid())
+  name           String
+  contactName    String?
+  email          String?
+  phone          String?
+  address        String?
+  paymentTerms   String?
+  rating         Decimal?          @db.Decimal(3, 2)
+  status         SupplierStatus    @default(ACTIVE)
+  purchaseOrders PurchaseOrder[]
+  invoices       PurchaseInvoice[]
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@index([name])
+  @@index([status, name])
+}
+
+model PurchaseOrder {
+  id            String              @id @default(uuid())
+  poNumber      String              @unique
+  supplierId    String
+  orderDate     DateTime            @default(now())
+  expectedDate  DateTime?
+  status        PurchaseOrderStatus @default(DRAFT)
+  currency      String              @default("USD")
+  totalAmount   Decimal             @default(0) @db.Decimal(18, 2)
+  notes         String?
+  createdById   String
+  approvedById  String?
+  approvedAt    DateTime?
+  supplier      Supplier            @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  createdBy     User                @relation("PurchaseOrderCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  approvedBy    User?               @relation("PurchaseOrderApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  items         PurchaseOrderItem[]
+  goodsReceipts GoodsReceipt[]
+  invoices      PurchaseInvoice[]
+  landingCosts  LandingCost[]
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  @@index([supplierId, orderDate])
+  @@index([status, orderDate])
+}
+
+model PurchaseOrderItem {
+  id                     String                  @id @default(uuid())
+  purchaseOrderId        String
+  itemId                 String
+  quantity               Decimal                 @db.Decimal(18, 4)
+  unitOfMeasure          String                  @default("unit")
+  unitPrice              Decimal                 @db.Decimal(18, 4)
+  receivedQuantity       Decimal                 @default(0) @db.Decimal(18, 4)
+  purchaseOrder          PurchaseOrder           @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  item                   Item                    @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  goodsReceiptItems      GoodsReceiptItem[]
+  landingCostAllocations LandingCostAllocation[]
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+
+  @@unique([purchaseOrderId, itemId])
+  @@index([itemId])
+}
+
+model GoodsReceipt {
+  id              String             @id @default(uuid())
+  grnNumber       String             @unique
+  purchaseOrderId String
+  locationId      String
+  receivedById    String
+  receivedAt      DateTime           @default(now())
+  note            String?
+  purchaseOrder   PurchaseOrder      @relation(fields: [purchaseOrderId], references: [id], onDelete: Restrict)
+  location        Location           @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  receivedBy      User               @relation(fields: [receivedById], references: [id], onDelete: Restrict)
+  items           GoodsReceiptItem[]
+  createdAt       DateTime           @default(now())
+
+  @@index([purchaseOrderId, receivedAt])
+  @@index([locationId, receivedAt])
+}
+
+model GoodsReceiptItem {
+  id                  String            @id @default(uuid())
+  goodsReceiptId      String
+  purchaseOrderItemId String
+  stockTransactionId  String            @unique
+  quantity            Decimal           @db.Decimal(18, 4)
+  areaSqm             Decimal           @default(0) @db.Decimal(18, 4)
+  qualityStatus       QualityStatus     @default(AVAILABLE)
+  note                String?
+  goodsReceipt        GoodsReceipt      @relation(fields: [goodsReceiptId], references: [id], onDelete: Cascade)
+  purchaseOrderItem   PurchaseOrderItem @relation(fields: [purchaseOrderItemId], references: [id], onDelete: Restrict)
+  stockTransaction    StockTransaction  @relation(fields: [stockTransactionId], references: [id], onDelete: Restrict)
+
+  @@index([purchaseOrderItemId])
+}
+
+model PurchaseInvoice {
+  id              String                @id @default(uuid())
+  supplierId      String
+  purchaseOrderId String?
+  invoiceNumber   String
+  invoiceDate     DateTime
+  dueDate         DateTime?
+  currency        String                @default("USD")
+  totalAmount     Decimal               @db.Decimal(18, 2)
+  status          PurchaseInvoiceStatus @default(RECORDED)
+  notes           String?
+  supplier        Supplier              @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  purchaseOrder   PurchaseOrder?        @relation(fields: [purchaseOrderId], references: [id], onDelete: Restrict)
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  @@unique([supplierId, invoiceNumber])
+  @@index([purchaseOrderId, invoiceDate])
+  @@index([supplierId, invoiceDate])
+}
+
+model LandingCost {
+  id              String                     @id @default(uuid())
+  purchaseOrderId String
+  category        LandingCostCategory
+  description     String?
+  amount          Decimal                    @db.Decimal(18, 2)
+  currency        String                     @default("USD")
+  allocationBasis LandingCostAllocationBasis
+  purchaseOrder   PurchaseOrder              @relation(fields: [purchaseOrderId], references: [id], onDelete: Restrict)
+  allocations     LandingCostAllocation[]
+  createdAt       DateTime                   @default(now())
+
+  @@index([purchaseOrderId, category])
+}
+
+model LandingCostAllocation {
+  id                  String            @id @default(uuid())
+  landingCostId       String
+  purchaseOrderItemId String
+  amount              Decimal           @db.Decimal(18, 2)
+  landingCost         LandingCost       @relation(fields: [landingCostId], references: [id], onDelete: Cascade)
+  purchaseOrderItem   PurchaseOrderItem @relation(fields: [purchaseOrderItemId], references: [id], onDelete: Restrict)
+
+  @@unique([landingCostId, purchaseOrderItemId])
+  @@index([purchaseOrderItemId])
 }

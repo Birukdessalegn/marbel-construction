@@ -14,6 +14,12 @@ describe("MarbleERP API", () => {
     const response = await request(app).get("/api/openapi.json").expect(200);
     expect(response.body.openapi).toBe("3.0.3");
     expect(response.body.paths["/stock/summary"].get.summary).toBe("Stock summary");
+    expect(response.body.paths["/goods-receipts"].post.summary).toBe("Receive goods against a purchase order");
+    expect(response.body.paths["/purchase-orders/{id}/approve"].post.summary).toBe("Approve purchase order");
+  });
+
+  it("protects procurement routes with authentication", async () => {
+    await request(app).get("/api/v1/suppliers").expect(401);
   });
 
   it("validates query parameters without assigning to Express's read-only req.query", async () => {
