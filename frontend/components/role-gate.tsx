@@ -3,8 +3,8 @@
 import { useAuthStore } from "@/features/auth/auth-store";
 import type { Role } from "@/types/api";
 
-export function RoleGate({ roles, children }: { roles: Role[]; children: React.ReactNode }) {
+export function RoleGate({ roles, children, fallback = null }: { roles: Role[]; children: React.ReactNode; fallback?: React.ReactNode }) {
   const user = useAuthStore((state) => state.user);
-  if (!user || !roles.includes(user.role)) return null;
+  if (!user || !roles.includes(user.role)) return fallback;
   return children;
 }

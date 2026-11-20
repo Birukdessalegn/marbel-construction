@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
-import { Blocks, Boxes, Building2, ChartNoAxesCombined, LayoutDashboard, Moon, ReceiptText, Sun, Menu, X, LogOut } from "lucide-react";
+import { Blocks, Boxes, Building2, ChartNoAxesCombined, ClipboardList, FileText, LayoutDashboard, Moon, PackageCheck, ReceiptText, Sun, Menu, X, LogOut, UsersRound } from "lucide-react";
 import { useAuthStore } from "@/features/auth/auth-store";
 import { Button } from "@/components/ui/button";
 
@@ -13,6 +13,12 @@ const nav = [
   { href: "/inventory/items", label: "Items", icon: Boxes },
   { href: "/stock", label: "Stock Movements", icon: ReceiptText },
   { href: "/warehouses", label: "Warehouses", icon: Building2 },
+  { href: "/suppliers", label: "Suppliers", icon: UsersRound },
+  { href: "/purchase-orders", label: "Purchase Orders", icon: ClipboardList },
+  { href: "/goods-receipts", label: "Goods Receipts", icon: PackageCheck },
+  { href: "/reports/open-purchase-orders", label: "Open Orders", icon: FileText },
+  { href: "/reports/supplier-performance", label: "Supplier Performance", icon: ChartNoAxesCombined },
+  { href: "/reports/purchase-history", label: "Purchase History", icon: ReceiptText },
   { href: "/reports/traceability", label: "Traceability", icon: ChartNoAxesCombined }
 ];
 
